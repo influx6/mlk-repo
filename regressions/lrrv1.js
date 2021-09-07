@@ -1,6 +1,7 @@
 const tf = require("@tensorflow/tfjs");
 const _ = require("lodash");
 
+//slow and not finished, but focus is the gradient descent algorithmn
 
 class LinearRegression {
 
