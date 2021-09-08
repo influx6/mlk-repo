@@ -14,7 +14,7 @@ class LinearRegressionWithBGD {
 		}, options);
 
 		this.features = this.processFeatures(features);
-		this.features = tf.one([this.features.shape[0], 1])
+		this.features = tf.ones([this.features.shape[0], 1])
 			.concat(this.features, 1);
 
 		// gradient descent vars
@@ -25,7 +25,8 @@ class LinearRegressionWithBGD {
 	}
 
 	train() {
-		let batchQuantity = math.floor(this.features.shape[0] / this.options.batchSize);
+		const batchSize = this.options.batchSize;
+		let batchQuantity = math.floor(this.features.shape[0] / batchSize);
 		for (let i = 0; i < this.options.iterations; i++) {
 			for (let j = 0; j < batchQuantity; j++) {
 				const start = j * batchSize;
@@ -48,7 +49,7 @@ class LinearRegressionWithBGD {
 			.matMul(differences)
 			.div(features.shape[0]);
 		this.weights = this.weights
-			.sub(slopes.mul(this.options.learningRate));
+			.sub(slopes.mul(tf.tensor(this.options.learningRate)));
 	}
 
 	standardize(features) {
@@ -80,7 +81,7 @@ class LinearRegressionWithBGD {
 
 	recordMSE() {
 		const mse = this.features.matMul(this.weights)
-			.sub(this.labels).pow(2)
+			.sub(this.labels).pow(tf.tensor(2))
 			.sum().div(this.features.shape[0]).get();
 		this.mseHistory.unshift(mse);
 	}
@@ -89,14 +90,16 @@ class LinearRegressionWithBGD {
 		testLabels = tf.tensor(testLabels);
 		testFeatures = this.processFeatures(testFeatures);
 		const predictions = testFeatures.matMul(this.weights);
-		const ss_res = testLabels.sub(predictions).pow(2).sum().get();
-		const ss_tot = testLabels.sub(testLabels.mean()).pow(2).sum().get();
+		// where ss_res => summed_squared_residual
+		const ss_res = testLabels.sub(predictions).pow(tf.tensor(2)).sum().get();
+		// where ss_total => summed_squared_total
+		const ss_tot = testLabels.sub(testLabels.mean()).pow(tf.tensor(2)).sum().get();
 		return 1 - (ss_res / ss_tot);
 	}
 
 	predict(observations) {
-		obs = this.processFeatures(observations);
-		return obs.matMul(this.weights);
+		return this.processFeatures(observations)
+			.matMul(this.weights);
 	}
 }
 
