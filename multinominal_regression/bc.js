@@ -41,7 +41,10 @@ class MultiNominalLogisticRegression {
 	}
 
 	sigmoidEqGradientDescend(features, labels) {
-		const guesses = features.matMul(this.weights).sigmoid();
+		// use softmax instead of sigmoid to ensure we do a Conditional Probability Distribution;
+		// as sigmoid performs a marginal probability distribution that considers each value
+		// of m individual not as a whole.
+		const guesses = features.matMul(this.weights).softmax();
 		const differences = guesses.sub(labels);
 		const slopes = features
 			.transpose()
@@ -104,9 +107,10 @@ class MultiNominalLogisticRegression {
 	}
 
 	test(testFeatures, testLabels) {
-		testLabels = tf.tensor(testLabels);
+		testLabels = tf.tensor(testLabels).argMax(1);
+
 		const predictions = this.predict(testFeatures);
-		const differences = predictions.sub(testLabels).abs();
+		const differences = predictions.notEqual(testLabels);
 		const incorrect = differences.sum().get();
 
 		// divide predictions by incorrect scalar and divide by total number of predictions.
@@ -114,10 +118,13 @@ class MultiNominalLogisticRegression {
 	}
 
 	predict(observations) {
+		// use softmax instead of sigmoid to ensure we do a Conditional Probability Distribution;
+		// as sigmoid performs a marginal probability distribution that considers each value
+		// of m individual not as a whole.
 		return this.processFeatures(observations)
-			.matMul(this.weights).sigmoid()
-			.greater(this.options.decisionBoundary)
-			.cast('float32');
+			.matMul(this.weights)
+			.softmax()
+			.argMax(1)
 	}
 }
 
