@@ -5,8 +5,8 @@ const _ = require('lodash');
 const plot = require("node-remote-plot");
 const mnist = require("mnist-data");
 
-const mnistData = mnist.training(0, 10);
-const mnistTest = mnist.testing(0, 5000);
+const mnistData = mnist.training(0, 60000);
+const mnistTest = mnist.testing(0, 1000);
 
 const convertLabel = (v) => {
 	const labelArr = new Array(10).fill(0);
