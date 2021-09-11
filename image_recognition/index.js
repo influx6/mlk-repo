@@ -1,34 +1,32 @@
 require("@tensorflow/tfjs-node");
 const tf = require("@tensorflow/tfjs");
-const loadCSV = require("./load-csv");
-const LinearRegression = require("./lrrv3");
+const LogisticRegression = require("./lrrv3");
+const _ = require('lodash');
 const plot = require("node-remote-plot");
+const mnist = require("mnist-data");
 
-let { features, labels, testFeatures, testLabels } = loadCSV("./cars.csv", {
-	shuffle: true,
-	splitTest: 50,
-	dataColumns: ["horsepower", "weight", "displacement"],
-	labelColumns: ["mpg"],
-});
+const mnistData = mnist.training(0, 10);
+const mnistTest = mnist.testing(0, 5000);
 
-let regression = new LinearRegression(features, labels, {
-	learningRate: 0.1,
-	iterations: 100,
-	batchSize: 10,
+const convertLabel = (v) => {
+	const labelArr = new Array(10).fill(0);
+	labelArr[v] = 1;
+	return labelArr;
+}
+
+const features = mnistData.images.values.map(v => _.flatMap(v));
+const testFeatures = mnistTest.images.values.map(v => _.flatMap(v));
+
+const labels = mnistData.labels.values.map(convertLabel)
+const testLabels = mnistTest.labels.values.map(convertLabel)
+
+let regression = new LogisticRegression(features, labels, {
+	learningRate: 1,
+	iterations: 20,
+	batchSize: 100,
 });
 
 regression.train();
+test_accuracy = regression.test(testFeatures, testLabels);
 
-const r2 = regression.test(testFeatures, testLabels);
-
-plot({
-	x: regression.mseHistory.reverse(),
-	xLabel: "iteration",
-	yLabel: "Mean Squared Error"
-})
-console.log(`Co-efficient of Determination: ${r2}`);
-
-regression.predict([
-	[120, 1.8, 350],
-	[126, 0.8, 150],
-]).print();
+console.log("TestAccuracy: ", test_accuracy, " for label: ", testLabels)
