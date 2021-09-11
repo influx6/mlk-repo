@@ -5,20 +5,24 @@ const _ = require('lodash');
 const plot = require("node-remote-plot");
 const mnist = require("mnist-data");
 
-const mnistData = mnist.training(0, 60000);
-const mnistTest = mnist.testing(0, 1000);
-
 const convertLabel = (v) => {
 	const labelArr = new Array(10).fill(0);
 	labelArr[v] = 1;
 	return labelArr;
 }
 
-const features = mnistData.images.values.map(v => _.flatMap(v));
-const testFeatures = mnistTest.images.values.map(v => _.flatMap(v));
+const [features, labels, testFeatures, testLabels] = (() => {
+	let mnistData = mnist.training(0, 60000);
+	let mnistTest = mnist.testing(0, 1000);
 
-const labels = mnistData.labels.values.map(convertLabel)
-const testLabels = mnistTest.labels.values.map(convertLabel)
+	const features = mnistData.images.values.map(v => _.flatMap(v));
+	const testFeatures = mnistTest.images.values.map(v => _.flatMap(v));
+
+	const labels = mnistData.labels.values.map(convertLabel)
+	const testLabels = mnistTest.labels.values.map(convertLabel)
+
+	return [features, labels, testFeatures, testLabels]
+})()
 
 let regression = new LogisticRegression(features, labels, {
 	learningRate: 1,

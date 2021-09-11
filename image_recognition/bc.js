@@ -30,10 +30,13 @@ class MultiNominalLogisticRegression {
 			for (let j = 0; j < batchQuantity; j++) {
 				const start = j * batchSize;
 				const count = this.options.batchSize;
-				this.sigmoidEqGradientDescend(
-					this.features.slice([start, 0], [count, -1]),
-					this.labels.slice([start, 0], [count, -1]),
-				);
+				this.weights = tf.tidy(() => {
+					return this.sigmoidEqGradientDescend(
+						this.features.slice([start, 0], [count, -1]),
+						this.labels.slice([start, 0], [count, -1]),
+					);
+
+				});
 			}
 			this.recordCrossEntropy();
 			this.updateLearningRate();
@@ -44,35 +47,40 @@ class MultiNominalLogisticRegression {
 		// use softmax instead of sigmoid to ensure we do a Conditional Probability Distribution;
 		// as sigmoid performs a marginal probability distribution that considers each value
 		// of m individual not as a whole.
-		const guesses = features.matMul(this.weights).softmax();
+		const guesses = features.matMul(this.weights).softmax()
 		const differences = guesses.sub(labels);
 		const slopes = features
 			.transpose()
 			.matMul(differences)
 			.div(features.shape[0]);
-		this.weights = this.weights
+		 return this.weights
 			.sub(slopes.mul(tf.tensor(this.options.learningRate)));
 	}
 
 	standardize(features) {
-		const { mean, variance } = tf.moments(features, 0);
-		// major change: variance could end up doing a division by zero which turns into a NaN,
-		// we will use the following trick to create a mask where we get rid of the zeros by swapping
-		// them with a 1, since division by 1 wont affect the actual result of the calculation.
-		const varianceFlip  = variance.cast('bool').logicalNot().cast('float32');
+		const { mean, variance } = tf.tidy(() => {
+			const {mean, variance} = tf.moments(features, 0);
+			const varianceMask = variance.cast('bool').logicalNot().cast('float32');
+			const newVariance = variance.add(varianceMask)
+			// major change: variance could end up doing a division by zero which turns into a NaN,
+			// we will use the following trick to create a mask where we get rid of the zeros by swapping
+			// them with a 1, since division by 1 wont affect the actual result of the calculation.
+			return { mean, variance: newVariance };
+		});
 		this.mean = mean;
-		this.variance = variance.add(varianceFlip);
+		this.variance = variance;
 	}
 
 	processFeatures(features) {
-		features = tf.tensor(features)
-		if (this.mean === null && this.variance === null) {
-			this.standardize(features)
-		}
-		features = features.sub(this.mean).div(this.variance.pow(0.5));
+		return tf.tidy(() => {
+			features = tf.tensor(features)
+			if (this.mean === null && this.variance === null) {
+				this.standardize(features)
+			}
+			features = features.sub(this.mean).div(this.variance.pow(0.5));
 
-		features = tf.ones(features.shape[0], 1).concat(features, 1);
-		return features;
+			return tf.ones(features.shape[0], 1).concat(features, 1);
+		});
 	}
 
 	updateLearningRate() {
@@ -89,36 +97,39 @@ class MultiNominalLogisticRegression {
 		// use vectorized cross entropy equation (replaced of mse in linear regression with gradient descent when doing logistic regression):
 		// => (-(1/m) . (Actual(T).log(Guesses) + (1-Actual)(T). log(1 - Guesses)))
 		// we can do a 1-m to an operation where we do => (m * -1) + 1
-		const guesses = this.features.matMul(this.weights).sigmoid()
-		const termOne  = this.labels.transpose().matMul(guesses.log());
-		const termTwo = this.labels
-			.mul(tf.tensor(-1))
-			.add(tf.tensor(1))
-			.transpose()
-			.matMul(
-				guesses
-					.mul(tf.tensor(-1))
-					.add(tf.tensor(1))
-					.log(),
-			);
+		this.crossEntropyHistory.unshift(tf.tidy(() => {
+			const guesses = this.features.matMul(this.weights).sigmoid();
+			const termOne  = this.labels.transpose().matMul(guesses.add(tf.tensor(1e-7)).log());
+			const termTwo = this.labels
+				.mul(tf.tensor(-1))
+				.add(tf.tensor(1))
+				.transpose()
+				.matMul(
+					guesses
+						.mul(tf.tensor(-1))
+						.add(tf.tensor(1))
+						.add(tf.tensor(1e-7)) // add constant to avoid NaN when we do a log of 0.
+						.log(),
+				);
 
-		const cost = termOne.add(termTwo)
-			.div(this.features.shape[0])
-			.mul(tf.tensor(-1))
-			.get(0, 0);
-
-		this.crossEntropyHistory.unshift(cost);
+			return termOne.add(termTwo)
+				.div(this.features.shape[0])
+				.mul(tf.tensor(-1))
+				.get(0, 0);
+		}));
 	}
 
 	test(testFeatures, testLabels) {
-		testLabels = tf.tensor(testLabels).argMax(1);
+		return tf.tidy(() => {
+			testLabels = tf.tensor(testLabels).argMax(1);
 
-		const predictions = this.predict(testFeatures);
-		const differences = predictions.notEqual(testLabels);
-		const incorrect = differences.sum().get();
+			const predictions = this.predict(testFeatures);
+			const differences = predictions.notEqual(testLabels);
+			const incorrect = differences.sum().get();
 
-		// divide predictions by incorrect scalar and divide by total number of predictions.
-		return (predictions.shape[0] - incorrect) / predictions.shape[0];
+			// divide predictions by incorrect scalar and divide by total number of predictions.
+			return (predictions.shape[0] - incorrect) / predictions.shape[0];
+		}).get();
 	}
 
 	predict(observations) {

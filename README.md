@@ -19,3 +19,9 @@ To download this project using git, run the following command at your terminal:
 ```
 git clone https://github.com/StephenGrider/MLKits.git
 ```
+
+### Optimizations and Speed Improvements for ML with NodeJS
+
+1. Increase allocated memory (head memory) for nodejs: `node --max-old-space-size=4096 script.js`
+2. Set references not used to null when not being used anymore (use closures to make references scoped to a local scope)
+3. Use tf.tidy() strategically to reduce tensorflow's memory references.
